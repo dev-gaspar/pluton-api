@@ -1,24 +1,25 @@
 # /app/model_loader.py
 import torch
 import os
+import torch.nn.functional as F
 from torch import nn
 
 
 # Definición del modelo (arquitectura)
-class Net(nn.Module):
+class SimpleCNN(nn.Module):
     def __init__(self):
-        super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(3, 16, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(16, 8, kernel_size=3, padding=1)
-        self.fc1 = nn.Linear(8 * 56 * 56, 56)
-        self.fc2 = nn.Linear(56, 2)
-        self.relu = nn.ReLU()
+        super(SimpleCNN, self).__init__()
+        self.conv1 = nn.Conv2d(3, 16, 3, padding=1)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(16, 32, 3, padding=1)
+        self.fc1 = nn.Linear(32 * 56 * 56, 128)
+        self.fc2 = nn.Linear(128, 6)  # 6 clases
 
     def forward(self, x):
-        x = torch.nn.functional.max_pool2d(self.relu(self.conv1(x)), 2)
-        x = torch.nn.functional.max_pool2d(self.relu(self.conv2(x)), 2)
-        x = torch.flatten(x, 1)
-        x = self.relu(self.fc1(x))
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = x.view(-1, 32 * 56 * 56)
+        x = F.relu(self.fc1(x))
         x = self.fc2(x)
         return x
 
@@ -29,7 +30,7 @@ def load_model(
     )
 ):
     try:
-        model = Net()
+        model = SimpleCNN()
         model.load_state_dict(torch.load(model_path, map_location=torch.device("cpu")))
         model.eval()
         print(f"Modelo cargado correctamente desde: {model_path}")
@@ -41,6 +42,17 @@ def load_model(
         raise RuntimeError(f"Error cargando el modelo: {str(e)}")
 
 
+# Lista de nombres de clases (ajusta si tu modelo fue entrenado con otros nombres)
+CLASS_NAMES = [
+    "freshbanana",
+    "freshmango",
+    "freshoranges",
+    "rottenbanana",
+    "rottenmango",
+    "rottenoranges",
+]
+
+
 def predict(model: nn.Module, tensor: torch.Tensor) -> str:
     with torch.no_grad():
         outputs = model(tensor)
@@ -48,4 +60,4 @@ def predict(model: nn.Module, tensor: torch.Tensor) -> str:
         _, preds = torch.max(probabilities, 1)
         class_index = preds.item()
         print(f"Probabilidades: {probabilities.data.numpy()[0].round(2)}")
-        return "Banana fresca 🍌" if class_index == 0 else "Banana podrida 🤢"
+        return CLASS_NAMES[class_index]
