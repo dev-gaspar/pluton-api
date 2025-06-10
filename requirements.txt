@@ -4,3 +4,5 @@ uvicorn
 torch
 torchvision
 pillow
+reportlab
+matplotlib
