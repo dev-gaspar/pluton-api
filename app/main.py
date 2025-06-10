@@ -50,7 +50,8 @@ def init_db():
         fecha TEXT,
         filename TEXT,
         clase TEXT,
-        probabilidad REAL
+        probabilidad REAL,
+        device_id TEXT
     )"""
     )
     conn.commit()
@@ -61,19 +62,22 @@ init_db()
 
 
 # Guardar análisis en la base de datos
-def guardar_analisis(filename, clase, probabilidad):
+def guardar_analisis(filename, clase, probabilidad, device_id):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "INSERT INTO analisis (fecha, filename, clase, probabilidad) VALUES (?, ?, ?, ?)",
-        (datetime.now().isoformat(), filename, clase, probabilidad),
+        "INSERT INTO analisis (fecha, filename, clase, probabilidad, device_id) VALUES (?, ?, ?, ?, ?)",
+        (datetime.now().isoformat(), filename, clase, probabilidad, device_id),
     )
     conn.commit()
     conn.close()
 
 
 @app.post("/predict/")
-async def predict_image(file: UploadFile = File(...)):
+async def predict_image(
+    file: UploadFile = File(...),
+    device_id: str = Query(..., description="ID del dispositivo"),
+):
     try:
         contents = await file.read()
         image = Image.open(io.BytesIO(contents))
@@ -87,7 +91,7 @@ async def predict_image(file: UploadFile = File(...)):
             probabilities = torch.nn.functional.softmax(outputs, dim=1)
             prob = float(probabilities.max().item())
         # Guardar en la base de datos
-        guardar_analisis(file.filename, prediction, prob)
+        guardar_analisis(file.filename, prediction, prob, device_id)
         return {"prediction": prediction, "probabilidad": prob}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -98,6 +102,7 @@ async def predict_image(file: UploadFile = File(...)):
 def generar_reporte_pdf(
     fecha_inicio: str = Query(..., description="Fecha inicio en formato YYYY-MM-DD"),
     fecha_fin: str = Query(..., description="Fecha fin en formato YYYY-MM-DD"),
+    device_id: str = Query(..., description="ID del dispositivo"),
 ):
     # Ajustar fechas para incluir todo el rango del día
     fecha_inicio_dt = datetime.strptime(fecha_inicio, "%Y-%m-%d")
@@ -109,8 +114,8 @@ def generar_reporte_pdf(
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "SELECT fecha, filename, clase, probabilidad FROM analisis WHERE fecha BETWEEN ? AND ?",
-        (fecha_inicio_str, fecha_fin_str),
+        "SELECT fecha, filename, clase, probabilidad FROM analisis WHERE fecha BETWEEN ? AND ? AND device_id = ?",
+        (fecha_inicio_str, fecha_fin_str, device_id),
     )
     rows = c.fetchall()
     conn.close()
@@ -154,6 +159,7 @@ def generar_reporte_pdf(
 def listado_analisis(
     fecha_inicio: str = Query(..., description="Fecha inicio en formato YYYY-MM-DD"),
     fecha_fin: str = Query(..., description="Fecha fin en formato YYYY-MM-DD"),
+    device_id: str = Query(..., description="ID del dispositivo"),
 ):
     # Ajustar fechas para incluir todo el rango del día
     fecha_inicio_dt = datetime.strptime(fecha_inicio, "%Y-%m-%d")
@@ -165,8 +171,8 @@ def listado_analisis(
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "SELECT id, fecha, filename, clase, probabilidad FROM analisis WHERE fecha BETWEEN ? AND ? ORDER BY fecha DESC",
-        (fecha_inicio_str, fecha_fin_str),
+        "SELECT id, fecha, filename, clase, probabilidad FROM analisis WHERE fecha BETWEEN ? AND ? AND device_id = ? ORDER BY fecha DESC",
+        (fecha_inicio_str, fecha_fin_str, device_id),
     )
     rows = c.fetchall()
     conn.close()
