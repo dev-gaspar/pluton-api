@@ -1,4 +1,4 @@
-# Dockerfile para banana-checker-api
+# Dockerfile para pluton-api
 FROM python:3.11-slim
 
 # Variables de entorno para evitar buffering y asegurar logs en tiempo real

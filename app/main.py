@@ -122,7 +122,7 @@ async def predict_image(
         file.file.seek(0)
         upload_result = cloudinary.uploader.upload(
             file.file,
-            folder="banana-checker",
+            folder="pluton",
             public_id=None,
             overwrite=True,
             resource_type="image",
