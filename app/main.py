@@ -13,6 +13,8 @@ import matplotlib.pyplot as plt
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 import os
+import cloudinary
+import cloudinary.uploader
 
 app = FastAPI()
 
@@ -39,6 +41,13 @@ transform = transforms.Compose(
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "analisis.db")
 
+# Configuración de Cloudinary
+cloudinary.config(
+    cloud_name="dxuauzyp9",
+    api_key="141155625795838",
+    api_secret="LqnUvpCwr1i0aBeVeXeGSvYLrhI",
+)
+
 
 # Inicializar la base de datos si no existe
 def init_db():
@@ -51,7 +60,8 @@ def init_db():
         filename TEXT,
         clase TEXT,
         probabilidad REAL,
-        device_id TEXT
+        device_id TEXT,
+        image_url TEXT
     )"""
     )
     conn.commit()
@@ -62,12 +72,19 @@ init_db()
 
 
 # Guardar análisis en la base de datos
-def guardar_analisis(filename, clase, probabilidad, device_id):
+def guardar_analisis(filename, clase, probabilidad, device_id, image_url):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "INSERT INTO analisis (fecha, filename, clase, probabilidad, device_id) VALUES (?, ?, ?, ?, ?)",
-        (datetime.now().isoformat(), filename, clase, probabilidad, device_id),
+        "INSERT INTO analisis (fecha, filename, clase, probabilidad, device_id, image_url) VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            datetime.now().isoformat(),
+            filename,
+            clase,
+            probabilidad,
+            device_id,
+            image_url,
+        ),
     )
     conn.commit()
     conn.close()
@@ -90,9 +107,19 @@ async def predict_image(
             outputs = model(tensor)
             probabilities = torch.nn.functional.softmax(outputs, dim=1)
             prob = float(probabilities.max().item())
+        # Subir imagen a Cloudinary
+        file.file.seek(0)
+        upload_result = cloudinary.uploader.upload(
+            file.file,
+            folder="banana-checker",
+            public_id=None,
+            overwrite=True,
+            resource_type="image",
+        )
+        image_url = upload_result.get("secure_url")
         # Guardar en la base de datos
-        guardar_analisis(file.filename, prediction, prob, device_id)
-        return {"prediction": prediction, "probabilidad": prob}
+        guardar_analisis(file.filename, prediction, prob, device_id, image_url)
+        return {"prediction": prediction, "probabilidad": prob, "image_url": image_url}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -114,7 +141,7 @@ def generar_reporte_pdf(
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "SELECT fecha, filename, clase, probabilidad FROM analisis WHERE fecha BETWEEN ? AND ? AND device_id = ?",
+        "SELECT fecha, filename, clase, probabilidad, image_url FROM analisis WHERE fecha BETWEEN ? AND ? AND device_id = ?",
         (fecha_inicio_str, fecha_fin_str, device_id),
     )
     rows = c.fetchall()
@@ -141,11 +168,15 @@ def generar_reporte_pdf(
     cpdf.drawString(30, 750, f"Reporte de análisis del {fecha_inicio} al {fecha_fin}")
     cpdf.drawImage(grafico_path, 30, 500, width=500, height=200)
     y = 480
-    cpdf.drawString(30, y, "Fecha        Archivo        Clase        Probabilidad")
+    cpdf.drawString(
+        30, y, "Fecha        Archivo        Clase        Probabilidad        Imagen"
+    )
     y -= 20
     for row in rows:
         cpdf.drawString(
-            30, y, f"{row[0][:19]}  {row[1][:15]}  {row[2]:<15}  {row[3]:.2f}"
+            30,
+            y,
+            f"{row[0][:19]}  {row[1][:15]}  {row[2]:<15}  {row[3]:.2f}  {row[4] if row[4] else ''}",
         )
         y -= 15
         if y < 50:
@@ -171,7 +202,7 @@ def listado_analisis(
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "SELECT id, fecha, filename, clase, probabilidad FROM analisis WHERE fecha BETWEEN ? AND ? AND device_id = ? ORDER BY fecha DESC",
+        "SELECT id, fecha, filename, clase, probabilidad, image_url FROM analisis WHERE fecha BETWEEN ? AND ? AND device_id = ? ORDER BY fecha DESC",
         (fecha_inicio_str, fecha_fin_str, device_id),
     )
     rows = c.fetchall()
@@ -183,6 +214,7 @@ def listado_analisis(
             "filename": row[2],
             "clase": row[3],
             "probabilidad": row[4],
+            "image_url": row[5],
         }
         for row in rows
     ]
