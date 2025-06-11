@@ -15,6 +15,7 @@ from reportlab.pdfgen import canvas
 import os
 import cloudinary
 import cloudinary.uploader
+import uuid
 
 app = FastAPI()
 
@@ -155,14 +156,23 @@ def generar_reporte_pdf(
     plt.title("Conteo de clases")
     plt.xlabel("Clase")
     plt.ylabel("Cantidad")
+    unique_id = str(uuid.uuid4())
     grafico_path = os.path.join(
-        os.path.dirname(__file__), "..", "models", "grafico.png"
+        os.path.dirname(__file__),
+        "..",
+        "models",
+        f"grafico_{device_id}_{unique_id}.png",
     )
     plt.savefig(grafico_path)
     plt.close()
 
     # Crear PDF
-    pdf_path = os.path.join(os.path.dirname(__file__), "..", "models", "reporte.pdf")
+    pdf_path = os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "models",
+        f"reporte_{device_id}_{unique_id}.pdf",
+    )
     cpdf = canvas.Canvas(pdf_path, pagesize=letter)
     cpdf.setFont("Helvetica", 12)
     cpdf.drawString(30, 750, f"Reporte de análisis del {fecha_inicio} al {fecha_fin}")
@@ -183,7 +193,25 @@ def generar_reporte_pdf(
             cpdf.showPage()
             y = 750
     cpdf.save()
-    return FileResponse(pdf_path, media_type="application/pdf", filename="reporte.pdf")
+    # Enviar el PDF y luego eliminar los archivos temporales
+    response = FileResponse(
+        pdf_path, media_type="application/pdf", filename=f"reporte_{device_id}.pdf"
+    )
+    import threading
+    import time
+
+    def cleanup(paths):
+        time.sleep(5)
+        for p in paths:
+            try:
+                os.remove(p)
+            except Exception:
+                pass
+
+    threading.Thread(
+        target=cleanup, args=([pdf_path, grafico_path],), daemon=True
+    ).start()
+    return response
 
 
 @app.get("/analisis/listado")
