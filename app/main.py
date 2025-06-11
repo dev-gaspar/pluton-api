@@ -16,6 +16,8 @@ import os
 import cloudinary
 import cloudinary.uploader
 import uuid
+import dotenv
+from dotenv import load_dotenv
 
 app = FastAPI()
 
@@ -40,13 +42,21 @@ transform = transforms.Compose(
     ]
 )
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "analisis.db")
+# Cargar variables de entorno desde .env
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
+
+DB_PATH = os.getenv(
+    "DB_PATH", os.path.join(os.path.dirname(__file__), "..", "models", "analisis.db")
+)
+CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
+CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
+CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
 
 # Configuración de Cloudinary
 cloudinary.config(
-    cloud_name="dxuauzyp9",
-    api_key="141155625795838",
-    api_secret="LqnUvpCwr1i0aBeVeXeGSvYLrhI",
+    cloud_name=CLOUDINARY_CLOUD_NAME,
+    api_key=CLOUDINARY_API_KEY,
+    api_secret=CLOUDINARY_API_SECRET,
 )
 
 

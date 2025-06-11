@@ -7,3 +7,4 @@ pillow
 reportlab
 matplotlib
 cloudinary
+python-dotenv
