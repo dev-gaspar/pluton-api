@@ -52,11 +52,6 @@ logs/
 .coverage
 htmlcov/
 
-# Archivos de modelo
-models/*.pth
-models/*.h5
-models/*.pkl
-
 # Archivos temporales
 tmp/
 temp/
