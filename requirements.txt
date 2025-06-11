@@ -8,3 +8,4 @@ reportlab
 matplotlib
 cloudinary
 python-dotenv
+python-multipart
